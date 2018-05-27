@@ -103,7 +103,6 @@ venv.bak/
 # mypy
 .mypy_cache/
 
-#output_files
-.txt
-.json
-.html
+*.txt
+*.html
+*.htm
