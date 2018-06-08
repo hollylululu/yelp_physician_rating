@@ -4,6 +4,7 @@ import json
 from scrapy.selector import Selector
 from scrapy.http import HtmlResponse
 import os
+import time
 
 
 
@@ -15,32 +16,44 @@ class QuotesSpider(scrapy.Spider):
         #os.mkdir(path, 0755)
         print "Path is created"
         self.link_file = path + 'links.txt'
+        self.user_url = 'https://www.yelp.com/user_details?userid='
+
 
 
     def start_requests(self):
         #read in a url-list file 
-        root_file = os.getcwd() + '/book_keeping/root_links.txt'
-        fronts = [line.rstrip('\n') for line in open(root_file)]
-        for url in fronts:
-            yield scrapy.Request(url=url, callback=self.get_all_pages)
-        pages = [line.rstrip('\n') for line in open(self.link_file)]
-        for page in pages:
-            yield scrapy.Request(url=page, callback=self.parse)
+        #root_file = os.getcwd() + '/book_keeping/root_links.txt'
+        #fronts = [line.rstrip('\n') for line in open(root_file)]
+
+        #for url in fronts:
+        #    yield scrapy.Request(url=url, callback=self.get_all_pages)
+
+        #pages = [line.rstrip('\n') for line in open(self.link_file)]
+        users = [line.rstrip('\n').split()[0] for line in open('/Users/luhe/yelp_physician_rating/tutorial/tutorial/spiders/crawled.txt')]
+        #for page in pages:
+        #    yield scrapy.Request(url=page, callback=self.parse)
+        #    time.sleep(3)
+        for user in users:
+            yield scrapy.Request(url=self.user_url+user, callback=self.get_user_info)
+            time.sleep(2)
 
     
 
     def parse(self, response):
         reviews = response.css('div#wrap.lang-en>div.biz-country-us>div.main-content-wrap>div#super-container>div.container>div.clearfix>div.column>div>div.feed>div.review-list>ul>li')
-        with open('content.txt', 'a') as fout:
+        with open('crawled.txt', 'a') as fout:
             for review in reviews[1: len(reviews)]:
                 content = review.css('div.review>div.review-wrapper>div.review-content>p::text').extract()
                 content = '.'.join(content).encode('utf-8')
                 upvotes = review.css('div.review>div.review-wrapper>div.review-footer>div.rateReview>ul.voting-buttons>li.vote-item>a.ybtn>span.count::text').extract()
-                upvotes = ' '.join(upvotes).encode('utf-8')
+                upvotes = '+'.join(upvotes).encode('utf-8')
                 user = review.css('div.review>div.review-sidebar>div.review-sidebar-content>div.ypassport>div.media-story>ul>li.user-name>a::attr(href)').extract()[0].encode('utf-8')
+                user = user.split('=')[1]
                 star = review.css('div.review>div.review-wrapper>div.review-content>div.biz-rating>div>div::attr(title)').extract()[0].encode('utf-8')
-                fout.write('\t'.join([user, content, upvotes, star]))
+                star = star.split()[0]
+                fout.write('    '.join([user, content, upvotes, star]))
                 fout.write('\n')
+
 
     def get_all_pages(self, response):
         pages = response.css('div#wrap.lang-en>div.biz-country-us>div.main-content-wrap>div#super-container>div.container>div.clearfix>div.column>div>div.feed>div.review-pager>div.pagination-block>div.arrange>div.pagination-links>div.arrange')
@@ -51,6 +64,42 @@ class QuotesSpider(scrapy.Spider):
                 for ele in next_page[0:len(next_page)-1]:
                     fout.write(ele.encode('utf-8'))
                     fout.write('\n')
+
+    def get_user_info(self, response):
+        rating_list = list()
+        upvotes_list = list()
+        user_info = dict()
+        total_upvotes = 0
+        #num_friends = 0
+        num_photo = 0
+
+        with open ('user_info.txt', 'a') as fout:
+            #Get user ID - use as the key
+            user_id = response.xpath('//div[@class="photo-slideshow_image"]//a/@href').extract_first().split('=')[1]
+            user_info[user_id] = []
+            fout.write(user_id + '    ')
+
+
+            #Get rating distribution
+            rating = response.xpath('//*[@class="ysection"]/table//tr')
+            nest = rating.xpath('.//td/table//tr')
+            rating_list = nest.xpath('td[@class="histogram_count"]/text()').extract()
+            user_info[user_id].append(rating_list)
+            print rating_list
+
+            fout.write('_'.join(rating_list))
+            fout.write('    ')
+            
+            #Get number of upvotes
+            upvotes = response.xpath('//*[@class="user-details-overview_sidebar"]//div[@class="ysection"][2]/ul')
+            upvotes_list =  upvotes.xpath('./li/strong[1]/text()').extract()
+            for ele in upvotes_list:
+                total_upvotes += int(ele)
+            
+            user_info[user_id].append(total_upvotes)
+
+            fout.write(str(total_upvotes))
+            fout.write('\n')
 
 
     
