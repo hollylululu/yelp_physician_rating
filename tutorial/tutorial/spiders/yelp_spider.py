@@ -1,22 +1,15 @@
-import scrapy 
-from bs4 import BeautifulSoup
-import json
-from scrapy.selector import Selector
-from scrapy.http import HtmlResponse
+import scrapy
 import os
-
 
 
 class QuotesSpider(scrapy.Spider):
     name = "yelp"
-    #testing
 
     def __init__(self):
         path = os.getcwd() + '/book_keeping/'
         #os.mkdir(path, 0755)
         print "Path is created"
         self.link_file = path + 'links.txt'
-
 
     def start_requests(self):
         #read in a url-list file 
@@ -27,8 +20,6 @@ class QuotesSpider(scrapy.Spider):
         pages = [line.rstrip('\n') for line in open(self.link_file)]
         for page in pages:
             yield scrapy.Request(url=page, callback=self.parse)
-
-    
 
     def parse(self, response):
         reviews = response.css('div#wrap.lang-en>div.biz-country-us>div.main-content-wrap>div#super-container>div.container>div.clearfix>div.column>div>div.feed>div.review-list>ul>li')
@@ -53,5 +44,37 @@ class QuotesSpider(scrapy.Spider):
                     fout.write(ele.encode('utf-8'))
                     fout.write('\n')
 
+    def get_user_info(self, response):
+        rating_list = list()
+        upvotes_list = list()
+        user_info = dict()
+        total_upvotes = 0
+        # num_friends = 0
+        # num_photo = 0
 
-    
+        with open('user_info.txt', 'a') as fout:
+            # Get user ID - use as the key
+            user_id = response.xpath('//div[@class="photo-slideshow_image"]//a/@href').extract_first().split('=')[1]
+            user_info[user_id] = []
+            fout.write(user_id + '    ')
+
+            # Get rating distribution
+            rating = response.xpath('//*[@class="ysection"]/table//tr')
+            nest = rating.xpath('.//td/table//tr')
+            rating_list = nest.xpath('td[@class="histogram_count"]/text()').extract()
+            user_info[user_id].append(rating_list)
+            print rating_list
+
+            fout.write('_'.join(rating_list))
+            fout.write('    ')
+
+            # Get number of upvotes
+            upvotes = response.xpath('//*[@class="user-details-overview_sidebar"]//div[@class="ysection"][2]/ul')
+            upvotes_list = upvotes.xpath('./li/strong[1]/text()').extract()
+            for ele in upvotes_list:
+                total_upvotes += int(ele)
+
+            user_info[user_id].append(total_upvotes)
+
+            fout.write(str(total_upvotes))
+            fout.write('\n')
