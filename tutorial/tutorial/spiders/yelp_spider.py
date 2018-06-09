@@ -9,6 +9,7 @@ import os
 
 class QuotesSpider(scrapy.Spider):
     name = "yelp"
+    #testing
 
     def __init__(self):
         path = os.getcwd() + '/book_keeping/'
